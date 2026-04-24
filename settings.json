@@ -1,0 +1,16 @@
+{
+  "vue.hover.rich": true,
+  "editor.defaultFormatter": "dbaeumer.vscode-eslint",
+  "editor.formatOnType": false,
+  "editor.formatOnPaste": true,
+  "editor.formatOnSave": true,
+  "editor.formatOnSaveMode": "file",
+  "files.autoSave": "onFocusChange",
+  "[vue]": {
+    "editor.defaultFormatter": "dbaeumer.vscode-eslint"
+  },
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": true
+  },
+  "eslint.format.enable": true
+}
