@@ -1,6 +1,6 @@
 <template>
     <!--
-      Lisätiedot-sivu projektin tehtävänannon mukaisesti.
+      Lisätiedot-sivu projektiin.
       Tämä sivu kertoo sovelluksen tekijästä, kuvauksen, käyttöohjeen ja lisätiedot.
     -->
     <v-container class="py-8">
@@ -111,17 +111,19 @@
 </template>
 
 <script setup>
+// Tässä komponentissa käsitellään ainoastaan navigointia.
+// Monimutkaiset sovelluslogiikat ovat muualla.
 import { useRouter } from 'vue-router';
 
-// Reititin, jota käytetään navigointiin takaisin etusivulle.
+// Reititin, jota käytetään koko sivun sisäiseen navigation hallintaan.
 const router = useRouter();
 
-// Palauttaa käyttäjän pääsivulle.
+// Palauttaa käyttäjän kotisivulle.
 function goBack() {
     router.push({ name: 'Home' });
 }
 
-// Navigoi suoraan Forecast-sivulle.
+// Siirtyy Forecast-sivulle näyttääksesi sääennusteen.
 function goForecast() {
     router.push({ name: 'Forecast' });
 }

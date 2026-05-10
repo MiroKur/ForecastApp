@@ -1,5 +1,7 @@
 <template>
+    <!-- Sovelluksen alalaidan footer-komponentti -->
     <v-footer app height="40">
+        <!-- Sosiaalisen median ja dokumentaation linkit -->
         <a
             v-for="item in items"
             :key="item.title"
@@ -12,6 +14,7 @@
             <v-icon :icon="item.icon" :size="item.icon === '$vuetify' ? 24 : 16" />
         </a>
 
+        <!-- Copyright-teksti ja lisenssilinkki -->
         <div class="text-caption text-disabled" style="position: absolute; right: 16px">
             &copy; 2016-{{ new Date().getFullYear() }}
             <span class="d-none d-sm-inline-block">Vuetify, LLC</span>
@@ -29,6 +32,7 @@
 </template>
 
 <script setup>
+// Footerin linkkikokoelman yksinkertainen lista
 const items = [
     {
         title: 'Vuetify Documentation',

@@ -25,7 +25,7 @@
 
   HUOM:
   - Komponentin avatessa ladataan oletuksena London, United Kingdom
-  - Sadetunnit (precipitation_hours) haetaan ja näytetään nyt oikein
+  - Sadetunnit (precipitation_hours) haetaan ja näytetään vain jos API palauttaa ne
   - Päivän tekstien väri on muutettu mustaksi, jotta ne näkyvät vaalealla/värillisellä taustalla
 -->
 
@@ -41,8 +41,8 @@
                       - oikealla siirtyminen lisätietoihin
                     -->
                     <v-card-title>
-                        <v-row align="center">
-                            <v-col cols="4" class="d-flex align-center">
+                        <v-row align="center" class="flex-wrap">
+                            <v-col cols="12" md="4" class="d-flex justify-start d-none d-md-flex">
                                 <v-btn
                                     color="primary"
                                     variant="outlined"
@@ -53,11 +53,25 @@
                                 </v-btn>
                             </v-col>
 
-                            <v-col cols="4" class="text-center text-h6 font-weight-bold">
+                            <v-col cols="12" md="4" class="text-center text-h6 font-weight-bold">
                                 Paikkakunta & Sade-ennuste
                             </v-col>
 
-                            <v-col cols="4" class="d-flex justify-end">
+                            <v-col cols="12" md="4" class="d-flex justify-end d-none d-md-flex">
+                                <v-btn color="secondary" variant="outlined" @click="goDetails">
+                                    Lisätiedot
+                                </v-btn>
+                            </v-col>
+
+                            <v-col cols="12" class="d-flex justify-center d-md-none mt-4">
+                                <v-btn
+                                    color="primary"
+                                    variant="outlined"
+                                    class="me-2"
+                                    @click="goHome"
+                                >
+                                    Home
+                                </v-btn>
                                 <v-btn color="secondary" variant="outlined" @click="goDetails">
                                     Lisätiedot
                                 </v-btn>
@@ -449,6 +463,13 @@ const router = useRouter();
 // Pinia-store: backup-logiikka ja säädata hallitaan keskitetysti storesta.
 const weatherStore = useWeatherStore();
 const { selectedCity, loading, error, weather } = storeToRefs(weatherStore);
+
+/*
+  TILAJAKO:
+  - selectedCity, loading, error ja weather ovat keskitettyä Pinia-store-tilaa.
+  - searchPhrase ja searchResults ovat paikallisia tässä komponentissa,
+    koska ne liittyvät käyttäjän aktiiviseen hakuun ja käyttäjäkokemukseen.
+*/
 const searchPhrase = ref('');
 const searchResults = ref([]);
 
@@ -474,7 +495,6 @@ const searchResults = ref([]);
   weather:
   - lopullinen säädata, joka näytetään templateissa
 */
-
 
 /*
   searchTimeout:
@@ -538,15 +558,15 @@ async function searchCities(selectFirst = false) {
     const query = searchPhrase.value?.trim();
 
     if (!query) {
-            error.value = 'Kirjoita hakusana ensin';
-            searchResults.value = [];
-            selectedCity.value = null;
-            return;
-        }
-
-        loading.value = true;
-        error.value = '';
+        error.value = 'Kirjoita hakusana ensin';
         searchResults.value = [];
+        selectedCity.value = null;
+        return;
+    }
+
+    loading.value = true;
+    error.value = '';
+    searchResults.value = [];
     try {
         const response = await fetch(
             `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=30&language=fi`,
@@ -682,7 +702,6 @@ function setCity(city) {
     weatherStore.setCity(city);
     weatherStore.fetchWeather(city);
 }
-
 
 /*
   formatDate(dateString)

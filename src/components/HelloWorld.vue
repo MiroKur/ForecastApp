@@ -1,6 +1,12 @@
+<!--
+  HelloWorld.vue
+  Tämä komponentti esittelee Vuetify-alustan ja tarjoaa linkit
+  dokumentaatioon, komponentteihin ja yhteisöön.
+-->
 <template>
     <v-container class="fill-height d-flex align-center" max-width="900">
         <div>
+            <!-- Logo ja otsikko -->
             <v-img class="mb-4" height="150" src="@/assets/logo.png" />
 
             <div class="mb-8 text-center">
@@ -10,6 +16,7 @@
 
             <v-row>
                 <v-col cols="12">
+                    <!-- Tervetulokortti, jossa ohjeet komponentin muokkaamiseen -->
                     <v-card
                         class="py-4"
                         color="surface-variant"
@@ -36,6 +43,7 @@
                     </v-card>
                 </v-col>
 
+                <!-- Linkkikortit eri Vuetify-resursseihin -->
                 <v-col v-for="link in links" :key="link.href" cols="6">
                     <v-card
                         append-icon="mdi-open-in-new"
@@ -57,6 +65,7 @@
 </template>
 
 <script setup>
+// Linkkikorttien määrittely. Lisätään helposti uusia resursseja.
 const links = [
     {
         href: 'https://vuetifyjs.com/',
