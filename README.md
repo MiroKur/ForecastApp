@@ -27,6 +27,7 @@ Sadevahti on Vue 3:lla ja Vuetifyllä rakennettu sade-ennustesovellus. Sovellus 
 ## Käynnistys
 
 Asenna riippuvuudet:
+Asennuskoneella / ympäristössä tulee olla Node.js asennettuna jotta projektia voi ajaa!
 
 Vaihteoehto 1
 npm install
