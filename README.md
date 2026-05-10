@@ -29,4 +29,10 @@ Sadevahti on Vue 3:lla ja Vuetifyllä rakennettu sade-ennustesovellus. Sovellus 
 Asenna riippuvuudet:
 
 ```bash
-pnpm install
+Käynnistä kehityspalvelin:
+
+pnpm run dev
+
+Sovellus avautuu osoitteeseen:
+
+http://localhost:3000pnpm install
