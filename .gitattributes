@@ -1,0 +1,12 @@
+# Normalize all text files and preserve executable permissions
+* text=auto
+
+# Ensure Vue and JS files use LF internally in the repo
+*.js text eol=lf
+*.ts text eol=lf
+*.vue text eol=lf
+*.json text eol=lf
+*.css text eol=lf
+*.scss text eol=lf
+*.html text eol=lf
+*.md text eol=lf

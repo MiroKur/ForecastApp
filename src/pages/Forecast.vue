@@ -16,16 +16,16 @@
                                     placeholder="Kirjoita kaupunki (esim. Tampere)"
                                     hide-details
                                     clearable
-                                    @update:modelValue="onSelect"
                                     :loading="searching"
+                                    @update:modelValue="onSelect"
                                 />
                             </v-col>
 
                             <v-col cols="12" md="4" class="d-flex align-center">
                                 <v-btn
                                     color="success"
-                                    @click="fetchWeatherForSelected"
                                     :disabled="!selected"
+                                    @click="fetchWeatherForSelected"
                                 >
                                     Hae sää
                                 </v-btn>
@@ -201,10 +201,13 @@ function setFromTop(c) {
 function fetchWeatherForSelected() {
     const item = selected.value;
     if (!item) return;
-    // if selected is object from searchResults
-    const lat = item.lat || item.latitude || item.lat;
-    const lon = item.lon || item.longitude || item.lon;
-    const name = item.display_name || item.name || item;
+    const lat = item.lat ?? item.latitude;
+    const lon = item.lon ?? item.longitude;
+    if (!lat || !lon) {
+        error.value = 'Valitse paikkakunta haun tuloksista tai suosikeista.';
+        return;
+    }
+    const name = item.display_name || item.name || String(item);
     fetchWeather(lat, lon, name);
 }
 

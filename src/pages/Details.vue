@@ -59,17 +59,32 @@ import { useRoute, useRouter } from 'vue-router';
 
 const route = useRoute();
 const router = useRouter();
-const creatorData = ref(null);
+const creatorData = ref({
+    firstName: 'Tuntematon',
+    lastName: '',
+    jobTitle: '',
+    company: '',
+});
 
 if (route.query.creatorData) {
-    creatorData.value = JSON.parse(route.query.creatorData);
+    try {
+        creatorData.value = JSON.parse(route.query.creatorData);
+    } catch (err) {
+        console.warn('creatorData parsing failed:', err);
+    }
 }
+
 onBeforeMount(() => {
     console.log('Creator data ennen komponentin renderöintiä:', creatorData.value);
 });
 
 onMounted(() => {
-    creatorData.value.firstName = 'Mirkku';
+    creatorData.value = {
+        firstName: creatorData.value.firstName || 'Mirkku',
+        lastName: creatorData.value.lastName || 'Korpela',
+        jobTitle: creatorData.value.jobTitle || 'Opiskelija',
+        company: creatorData.value.company || 'SAMK',
+    };
     console.log('Creator data komponentin renderöinnin jälkeen:', creatorData.value);
 });
 const goBack = () => {
