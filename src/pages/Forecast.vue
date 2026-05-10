@@ -1,95 +1,427 @@
+<!--
+  Forecast.vue - Sade-ennustesivu
+
+  TÄMÄ KOMPONENTTI TEKEE 5 PÄÄASIAA:
+
+  1) Näyttää hakukentän, johon käyttäjä voi kirjoittaa kaupungin nimen
+  2) Hakee Open-Meteo Geocoding API:sta osuvat paikat
+  3) Antaa käyttäjän valita kaupungin hakutuloksista
+  4) Hakee Open-Meteo Forecast API:sta 7 päivän sää- ja sadetiedot
+  5) Näyttää tämän päivän tiedot + 7 päivän ennusteen korteissa
+
+  KOKO DATAFLOW PÄHKINÄNKUORESSA:
+
+  searchPhrase
+    -> käyttäjä kirjoittaa hakukenttään
+    -> onSearchPhraseInput()
+    -> 500ms debounce
+    -> searchCities()
+    -> searchResults täyttyy
+    -> käyttäjä klikkaa setCity(city)
+    -> selectedCity päivittyy
+    -> fetchWeather(lat, lon, placeName)
+    -> weather täyttyy
+    -> template näyttää tämän päivän sään + 7 päivän ennusteen
+
+  HUOM:
+  - Komponentin avatessa ladataan oletuksena London, United Kingdom
+  - Sadetunnit (precipitation_hours) haetaan ja näytetään nyt oikein
+  - Päivän tekstien väri on muutettu mustaksi, jotta ne näkyvät vaalealla/värillisellä taustalla
+-->
+
 <template>
     <v-container class="py-8">
         <v-row justify="center">
-            <v-col cols="12" md="8">
+            <v-col cols="12" md="10" lg="9">
                 <v-card>
-                    <v-card-title class="justify-center">Paikkakunta & Sää</v-card-title>
+                    <!--
+                      OTSIKKOALUE
+                      - vasemmalla Home- ja Takaisin-painikkeet
+                      - keskellä sivun otsikko
+                      - oikealla siirtyminen lisätietoihin
+                    -->
+                    <v-card-title>
+                        <v-row align="center">
+                            <v-col cols="4" class="d-flex align-center">
+                                <v-btn
+                                    color="primary"
+                                    variant="outlined"
+                                    class="me-2"
+                                    @click="goHome"
+                                >
+                                    Home
+                                </v-btn>
+                            </v-col>
+
+                            <v-col cols="4" class="text-center text-h6 font-weight-bold">
+                                Paikkakunta & Sade-ennuste
+                            </v-col>
+
+                            <v-col cols="4" class="d-flex justify-end">
+                                <v-btn color="secondary" variant="outlined" @click="goDetails">
+                                    Lisätiedot
+                                </v-btn>
+                            </v-col>
+                        </v-row>
+                    </v-card-title>
+
                     <v-card-text>
+                        <!--
+                          HAKUALUE
+
+                          Käyttäjä kirjoittaa paikkakunnan nimen.
+                          Kun käyttäjä kirjoittaa:
+                          - v-model päivittää searchPhrase-arvon
+                          - @input kutsuu onSearchPhraseInput()
+                          - 500ms viiveen jälkeen tehdään API-haku
+
+                          Käyttäjä voi myös:
+                          - painaa Enter -> haetaan heti
+                          - klikata HAE-painiketta -> haetaan heti
+                        -->
                         <v-row>
                             <v-col cols="12" md="8">
-                                <v-autocomplete
-                                    v-model="selected"
-                                    :items="searchResults"
-                                    item-title="display_name"
-                                    item-text="display_name"
-                                    label="Haku paikkakunnasta"
-                                    placeholder="Kirjoita kaupunki (esim. Tampere)"
+                                <v-text-field
+                                    v-model="searchPhrase"
+                                    label="Paikkakunta"
+                                    placeholder="Kirjoita kaupunki (esim. Tornio)"
                                     hide-details
                                     clearable
-                                    :loading="searching"
-                                    @update:modelValue="onSelect"
+                                    @input="onSearchPhraseInput"
+                                    @keydown.enter.prevent="onEnterPress"
                                 />
                             </v-col>
 
                             <v-col cols="12" md="4" class="d-flex align-center">
                                 <v-btn
                                     color="success"
-                                    :disabled="!selected"
-                                    @click="fetchWeatherForSelected"
+                                    :disabled="!searchPhrase || loading"
+                                    @click="searchCities"
                                 >
-                                    Hae sää
-                                </v-btn>
-                            </v-col>
-                            <v-col cols="12" md="4" class="d-flex flex-column align-center">
-                                <div class="mb-2 small">Haku: {{ searchQuery }}</div>
-                                <v-btn
-                                    color="success"
-                                    :disabled="!searchQuery"
-                                    @click="fetchCities"
-                                >
-                                    HAE KAUPUNGIT
+                                    HAE
                                 </v-btn>
                             </v-col>
                         </v-row>
 
+                        <!--
+                          VIRHEET JA LATAUS
+
+                          error:
+                          - jos API-haku epäonnistuu tai paikkoja ei löydy
+
+                          loading:
+                          - kun geokoodaus- tai säädatahaku on käynnissä
+                        -->
                         <v-row class="mt-4">
                             <v-col cols="12">
-                                <v-alert v-if="error" type="error" dense>{{ error }}</v-alert>
-                                <v-progress-linear
-                                    v-if="loading"
-                                    indeterminate
-                                    color="success"
-                                ></v-progress-linear>
+                                <v-alert v-if="error" type="error" density="comfortable">
+                                    {{ error }}
+                                </v-alert>
 
-                                <v-card v-if="weather" class="mt-4">
-                                    <v-card-title>{{ weather.place }}</v-card-title>
+                                <v-progress-linear v-if="loading" indeterminate color="success" />
+                            </v-col>
+                        </v-row>
+
+                        <!--
+                          SISÄLTÖALUE
+
+                          Vasen sarake:
+                          - hakutulokset
+
+                          Oikea sarake:
+                          - valitun kaupungin tiedot
+                          - tämän päivän sää
+                          - 7 päivän sade-ennuste
+                        -->
+                        <v-row class="mt-4">
+                            <!-- HAKUTULOKSET -->
+                            <v-col cols="12" md="5">
+                                <v-card v-if="searchResults.length" class="mb-4">
+                                    <v-card-title>Osuvat paikat</v-card-title>
+
                                     <v-card-text>
-                                        <div>
-                                            Latitude: {{ weather.latitude }}, Longitude:
-                                            {{ weather.longitude }}
+                                        <!--
+                                          Jokainen hakutulos on klikattava rivi.
+                                          Klikkaus:
+                                          -> setCity(city)
+                                          -> selectedCity päivittyy
+                                          -> fetchWeather() hakee säädatan
+                                        -->
+                                        <v-list class="city-list">
+                                            <v-list-item
+                                                v-for="(city, index) in searchResults"
+                                                :key="city.id ?? index"
+                                                class="city-item"
+                                                @click="setCity(city)"
+                                            >
+                                                <div class="city-item-text">
+                                                    <div class="city-item-title">
+                                                        {{ city.name }}
+                                                    </div>
+                                                    <div class="city-item-subtitle">
+                                                        {{ city.country }}
+                                                    </div>
+                                                </div>
+                                            </v-list-item>
+                                        </v-list>
+                                    </v-card-text>
+                                </v-card>
+
+                                <div v-else class="small">
+                                    Kirjoita hakusana ja paina HAE niin osuvat kaupungit näkyvät
+                                    tässä listassa.
+                                </div>
+                            </v-col>
+
+                            <!-- SÄÄTIEDOT -->
+                            <v-col cols="12" md="7">
+                                <!--
+                                  VALITTU KAUPUNKI
+                                  Näytetään kun selectedCity löytyy.
+                                -->
+                                <v-card v-if="selectedCity" class="mb-4">
+                                    <v-card-title class="d-flex align-center">
+                                        <v-icon class="me-2">mdi-map-marker</v-icon>
+                                        {{ selectedCity.name }}, {{ selectedCity.country }}
+                                    </v-card-title>
+
+                                    <v-card-text>
+                                        <div class="mb-3 city-coords">
+                                            <v-icon size="small" class="me-1"
+                                                >mdi-crosshairs-gps</v-icon
+                                            >
+                                            lat: {{ selectedCity.latitude }}, lon:
+                                            {{ selectedCity.longitude }}
                                         </div>
-                                        <div>Temp max (next): {{ weather.temp_max }}°C</div>
-                                        <div>Temp min (next): {{ weather.temp_min }}°C</div>
-                                        <div>
-                                            Precip sum (next): {{ weather.precipitation_sum }} mm
+
+                                        <!--
+                                          TÄMÄN PÄIVÄN SÄÄ
+
+                                          weather muodostetaan fetchWeather()-funktiossa.
+                                          weather.forecast[0] on käytännössä tämän päivän data.
+                                        -->
+                                        <div v-if="weather" class="current-weather-card pa-4 mb-3">
+                                            <h4 class="mb-3 current-weather-title">
+                                                <v-icon class="me-2"
+                                                    >mdi-weather-partly-cloudy</v-icon
+                                                >
+                                                Tämän päivän sää ({{
+                                                    formatDate(weather.forecast[0]?.date)
+                                                }})
+                                            </h4>
+
+                                            <v-row>
+                                                <v-col cols="6" sm="4" md="4" lg="3">
+                                                    <div class="weather-stat">
+                                                        <v-icon color="red">mdi-thermometer</v-icon>
+                                                        <div class="stat-value">
+                                                            {{ weather.temp_max }}°C
+                                                        </div>
+                                                        <div class="stat-label">Max lämpötila</div>
+                                                    </div>
+                                                </v-col>
+
+                                                <v-col cols="6" sm="4" md="4" lg="3">
+                                                    <div class="weather-stat">
+                                                        <v-icon color="blue"
+                                                            >mdi-thermometer-low</v-icon
+                                                        >
+                                                        <div class="stat-value">
+                                                            {{ weather.temp_min }}°C
+                                                        </div>
+                                                        <div class="stat-label">Min lämpötila</div>
+                                                    </div>
+                                                </v-col>
+
+                                                <v-col cols="6" sm="4" md="4" lg="3">
+                                                    <div class="weather-stat">
+                                                        <v-icon
+                                                            :color="
+                                                                getRainIconColor(
+                                                                    weather.precipitation_sum,
+                                                                )
+                                                            "
+                                                        >
+                                                            mdi-weather-rainy
+                                                        </v-icon>
+                                                        <div class="stat-value">
+                                                            {{ weather.precipitation_sum }} mm
+                                                        </div>
+                                                        <div class="stat-label">Sadesumma</div>
+                                                    </div>
+                                                </v-col>
+
+                                                <v-col cols="6" sm="4" md="4" lg="3">
+                                                    <div class="weather-stat">
+                                                        <v-icon color="teal">mdi-timer-sand</v-icon>
+                                                        <div class="stat-value">
+                                                            {{ weather.precipitation_hours ?? 0 }} h
+                                                        </div>
+                                                        <div class="stat-label">Sadetunnit</div>
+                                                    </div>
+                                                </v-col>
+
+                                                <v-col cols="6" sm="4" md="4" lg="3">
+                                                    <div class="weather-stat">
+                                                        <v-icon
+                                                            :color="
+                                                                getRainProbabilityColor(
+                                                                    weather.precipitation_probability_max,
+                                                                )
+                                                            "
+                                                        >
+                                                            mdi-weather-pouring
+                                                        </v-icon>
+                                                        <div class="stat-value">
+                                                            {{
+                                                                weather.precipitation_probability_max ??
+                                                                0
+                                                            }}%
+                                                        </div>
+                                                        <div class="stat-label">
+                                                            Sateen todennäköisyys
+                                                        </div>
+                                                    </div>
+                                                </v-col>
+                                            </v-row>
                                         </div>
                                     </v-card-text>
                                 </v-card>
-                            </v-col>
-                        </v-row>
 
-                        <v-row class="mt-6">
-                            <v-col cols="12">
-                                <v-card>
-                                    <v-card-title>Suosituimmat paikkakunnat</v-card-title>
+                                <!--
+                                  7 PÄIVÄN ENNUSTE
+
+                                  Näytetään vain jos:
+                                  - selectedCity löytyy
+                                  - weather.forecast sisältää rivejä
+
+                                  Jokainen day-olio muodostetaan fetchWeather()-funktiossa.
+                                -->
+                                <v-card v-if="selectedCity && weather?.forecast?.length">
+                                    <v-card-title class="d-flex align-center">
+                                        <v-icon class="me-2">mdi-calendar-week</v-icon>
+                                        7 päivän sade-ennuste - {{ selectedCity.name }}
+                                    </v-card-title>
+
                                     <v-card-text>
-                                        <v-list class="city-list">
-                                            <v-list-item
-                                                v-for="(c, i) in topCities"
-                                                :key="i"
-                                                class="city-item"
-                                                @click="setFromTop(c)"
+                                        <v-row>
+                                            <v-col
+                                                v-for="(day, index) in weather.forecast"
+                                                :key="day.date"
+                                                cols="12"
+                                                sm="6"
+                                                lg="4"
                                             >
-                                                <v-list-item-title class="text-center">{{
-                                                    c.display_name
-                                                }}</v-list-item-title>
-                                            </v-list-item>
-                                        </v-list>
+                                                <v-card
+                                                    :class="[
+                                                        'forecast-card pa-3 mb-3',
+                                                        { 'today-card': index === 0 },
+                                                    ]"
+                                                >
+                                                    <!-- Päivämäärä -->
+                                                    <div class="forecast-date mb-2">
+                                                        <v-icon
+                                                            size="small"
+                                                            class="me-1 forecast-date-icon"
+                                                        >
+                                                            mdi-calendar
+                                                        </v-icon>
+                                                        <span class="forecast-main-text">
+                                                            {{ formatDate(day.date) }}
+                                                        </span>
+                                                        <span v-if="index === 0" class="today-badge"
+                                                            >Tänään</span
+                                                        >
+                                                    </div>
+
+                                                    <!-- Lämpötilat -->
+                                                    <div class="temp-row mb-2">
+                                                        <v-icon
+                                                            size="small"
+                                                            color="red"
+                                                            class="me-1"
+                                                        >
+                                                            mdi-thermometer
+                                                        </v-icon>
+                                                        <span class="temp-max"
+                                                            >{{ day.temp_max }}°</span
+                                                        >
+
+                                                        <v-icon
+                                                            size="small"
+                                                            color="blue"
+                                                            class="mx-1"
+                                                        >
+                                                            mdi-thermometer-low
+                                                        </v-icon>
+                                                        <span class="temp-min"
+                                                            >{{ day.temp_min }}°</span
+                                                        >
+                                                    </div>
+
+                                                    <!-- Sadesumma -->
+                                                    <div class="rain-row">
+                                                        <v-icon
+                                                            :color="
+                                                                getRainIconColor(
+                                                                    day.precipitation_sum,
+                                                                )
+                                                            "
+                                                            class="me-1"
+                                                        >
+                                                            mdi-weather-rainy
+                                                        </v-icon>
+                                                        <span class="forecast-main-text">
+                                                            {{ day.precipitation_sum ?? 0 }} mm
+                                                        </span>
+                                                    </div>
+
+                                                    <!-- Sadetunnit -->
+                                                    <div class="rain-hours-row mt-1">
+                                                        <v-icon
+                                                            size="small"
+                                                            color="teal"
+                                                            class="me-1"
+                                                        >
+                                                            mdi-timer-sand
+                                                        </v-icon>
+                                                        <span class="forecast-main-text">
+                                                            {{ day.precipitation_hours ?? 0 }} h
+                                                        </span>
+                                                    </div>
+
+                                                    <!-- Sateen todennäköisyys -->
+                                                    <div class="rain-prob-row mt-1">
+                                                        <v-icon
+                                                            size="small"
+                                                            :color="
+                                                                getRainProbabilityColor(
+                                                                    day.precipitation_probability_max,
+                                                                )
+                                                            "
+                                                            class="me-1"
+                                                        >
+                                                            mdi-weather-pouring
+                                                        </v-icon>
+                                                        <span class="forecast-main-text">
+                                                            {{
+                                                                day.precipitation_probability_max ??
+                                                                0
+                                                            }}%
+                                                        </span>
+                                                    </div>
+                                                </v-card>
+                                            </v-col>
+                                        </v-row>
                                     </v-card-text>
                                 </v-card>
                             </v-col>
                         </v-row>
                     </v-card-text>
+
+                    <v-card-actions class="justify-start pa-4">
+                        <v-btn color="primary" variant="text" @click="goBack"> Takaisin </v-btn>
+                    </v-card-actions>
                 </v-card>
             </v-col>
         </v-row>
@@ -97,152 +429,327 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+// Vue-importit:
+// onMounted = suoritetaan kun komponentti latautuu
+import { onMounted, ref } from 'vue';
 
-const selected = ref(null);
-const searchQuery = ref('');
+// Vue Router navigointiin
+import { useRouter } from 'vue-router';
+
+// Pinia-kauppa tilan hallintaan
+import { storeToRefs } from 'pinia';
+import { useWeatherStore } from '@/stores/weather';
+
+/*
+  ROUTER
+  Käytetään siirtymään takaisin etusivulle tai details-sivulle
+*/
+const router = useRouter();
+
+// Pinia-store: backup-logiikka ja säädata hallitaan keskitetysti storesta.
+const weatherStore = useWeatherStore();
+const { selectedCity, loading, error, weather } = storeToRefs(weatherStore);
+const searchPhrase = ref('');
 const searchResults = ref([]);
-const searching = ref(false);
-const loading = ref(false);
-const error = ref('');
-const weather = ref(null);
 
-// default top cities (some sample geocoding objects)
-const topCities = ref([
-    { display_name: 'London, England', lat: 51.5085, lon: -0.1257 },
-    { display_name: 'Helsinki, Finland', lat: 60.1699, lon: 24.9384 },
-    { display_name: 'Tampere, Finland', lat: 61.4981, lon: 23.761 },
-    { display_name: 'Turku, Finland', lat: 60.4518, lon: 22.2666 },
-    { display_name: 'Oulu, Finland', lat: 65.0121, lon: 25.4651 },
-]);
+/*
+  REAKTIIVISET MUUTTUJAT
 
-async function searchPlaces(query) {
+  searchPhrase:
+  - käyttäjän kirjoittama hakusana
+
+  searchResults:
+  - hakutulokset Open-Meteo geocoding API:sta
+
+  selectedCity:
+  - käyttäjän valitsema kaupunki
+  - sisältää mm. nimen, maan, latitude ja longitude
+
+  loading:
+  - true kun jokin API-haku on käynnissä
+
+  error:
+  - virheviesti käyttäjälle
+
+  weather:
+  - lopullinen säädata, joka näytetään templateissa
+*/
+
+
+/*
+  searchTimeout:
+  - debounce-ajastin
+  - estää API-kutsun jokaisella näppäimenpainalluksella
+*/
+let searchTimeout = null;
+
+/*
+  goBack()
+  - siirtyy etusivulle
+  - samalla tyhjentää mahdollisen debounce-timeoutin
+*/
+function goBack() {
+    if (searchTimeout) {
+        clearTimeout(searchTimeout);
+        searchTimeout = null;
+    }
+    router.push({ name: 'Home' });
+}
+
+function goHome() {
+    router.push({ name: 'Home' });
+}
+
+/*
+  goDetails()
+  - siirtyy Lisätiedot-sivulle
+*/
+function goDetails() {
+    router.push({ name: 'Details' });
+}
+
+/*
+  onMounted()
+  - suoritetaan automaattisesti kun komponentti avautuu
+  - asettaa Lontoon oletuskaupungiksi
+  - hakee heti Lontoon 7 päivän ennusteen
+
+  Tämä täyttää tehtävänannon kohdan:
+  "Sovellus käynnistyy Lontoon sadetiedoilla"
+*/
+onMounted(() => {
+    searchPhrase.value = 'London';
+    weatherStore.loadDefaultLondon();
+});
+
+/*
+  searchCities(selectFirst = false)
+
+  TARKOITUS:
+  - hakee kaupungit Open-Meteo geocoding API:sta
+
+  PARAMETRI:
+  - selectFirst: jos true, voidaan halutessa asettaa ensimmäinen osuma selectedCityksi
+
+  FLOW:
+  searchPhrase -> API -> searchResults -> template näyttää listan
+*/
+async function searchCities(selectFirst = false) {
+    const query = searchPhrase.value?.trim();
+
     if (!query) {
+            error.value = 'Kirjoita hakusana ensin';
+            searchResults.value = [];
+            selectedCity.value = null;
+            return;
+        }
+
+        loading.value = true;
+        error.value = '';
         searchResults.value = [];
-        return;
-    }
-    searching.value = true;
-    error.value = '';
     try {
-        const res = await fetch(
-            `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5`,
+        const response = await fetch(
+            `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=30&language=fi`,
         );
-        if (!res.ok) throw new Error('Geokoodaus epäonnistui');
-        const data = await res.json();
-        // log raw payload and any result/results key for debugging
-        console.log('geocode raw response:', data);
-        console.log('geocode data.result:', data.result ?? data.results ?? data);
-        // map to consistent shape - support multiple APIs that return result/results or a top-level array
-        const items = data.result ?? data.results ?? data;
-        searchResults.value = (items || []).map((d) => ({
-            display_name: d.display_name || d.name || '',
-            lat: parseFloat(d.lat || d.latitude),
-            lon: parseFloat(d.lon || d.longitude),
+
+        if (!response.ok) {
+            throw new Error('Geokoodaus epäonnistui');
+        }
+
+        const data = await response.json();
+        const results = data.results || [];
+
+        /*
+          Suodatus:
+          - pidetään mukana vain tulokset, joissa hakusana löytyy nimestä,
+            hallintoalueesta tai maasta
+        */
+        const filtered = results.filter((item) =>
+            `${item.name} ${item.admin1 ?? ''} ${item.country}`
+                .toLowerCase()
+                .includes(query.toLowerCase()),
+        );
+
+        if (!filtered.length) {
+            error.value = 'Paikkoja ei löytynyt';
+            selectedCity.value = null;
+            return;
+        }
+
+        /*
+          Muutetaan API:n tulokset omaan, yhtenäiseen muotoon
+          jotta template ja fetchWeather voivat käyttää samoja kenttiä
+        */
+        searchResults.value = filtered.map((item) => ({
+            id: item.id ?? `${item.latitude}-${item.longitude}`,
+            name: item.name,
+            country: item.country,
+            latitude: item.latitude,
+            longitude: item.longitude,
         }));
-    } catch (err) {
-        console.error(err);
+
+        if (selectFirst) {
+            const firstCity = searchResults.value[0] || null;
+            if (firstCity) {
+                weatherStore.setCity(firstCity);
+            }
+        }
+    } catch {
         error.value = 'Paikkahaku epäonnistui';
-    } finally {
-        searching.value = false;
-    }
-}
-
-let searchDebounce = null;
-function onSelect(val) {
-    // If user selected an object from the dropdown, fetch its weather immediately
-    if (val && typeof val === 'object' && val.lat && val.lon) {
-        selected.value = val;
-        // keep the typed query in sync with selection
-        searchQuery.value = val.display_name || '';
-        fetchWeather(val.lat, val.lon, val.display_name);
-        return;
-    }
-
-    // when user types, v-autocomplete triggers update; debounce the search
-    const query = typeof val === 'string' ? val : val?.display_name || '';
-    searchQuery.value = query;
-    if (searchDebounce) clearTimeout(searchDebounce);
-    if (!query) return;
-    searchDebounce = setTimeout(() => searchPlaces(query), 300);
-}
-
-async function fetchWeather(lat, lon, placeName) {
-    loading.value = true;
-    error.value = '';
-    weather.value = null;
-    try {
-        const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=precipitation_sum,precipitation_probability_max,precipitation_hours,temperature_2m_max,temperature_2m_min,weather_code&timezone=auto`;
-        const res = await fetch(url);
-        if (!res.ok) throw new Error('Säädataa ei saatu');
-        const j = await res.json();
-        // pick daily summary first day
-        const daily = j.daily || {};
-        weather.value = {
-            place: placeName,
-            latitude: lat,
-            longitude: lon,
-            temp_max: daily.temperature_2m_max?.[0],
-            temp_min: daily.temperature_2m_min?.[0],
-            precipitation_sum: daily.precipitation_sum?.[0],
-        };
-    } catch (err) {
-        console.error(err);
-        error.value = 'Sään haku epäonnistui';
     } finally {
         loading.value = false;
     }
 }
 
-function setFromTop(c) {
-    selected.value = c;
-    fetchWeather(c.lat, c.lon, c.display_name);
-}
+/*
+  onSearchPhraseInput()
 
-function fetchWeatherForSelected() {
-    const item = selected.value;
-    if (!item) return;
-    const lat = item.lat ?? item.latitude;
-    const lon = item.lon ?? item.longitude;
-    if (!lat || !lon) {
-        error.value = 'Valitse paikkakunta haun tuloksista tai suosikeista.';
+  TARKOITUS:
+  - debounce-haku hakukentälle
+
+  MIKSI:
+  - ilman debouncea API-kutsu lähtisi jokaisella näppäimenpainalluksella
+  - nyt odotetaan 500ms ennen hakua
+
+  FLOW:
+  käyttäjä kirjoittaa -> vanha timeout perutaan -> uusi timeout -> searchCities()
+*/
+function onSearchPhraseInput() {
+    if (searchTimeout) {
+        clearTimeout(searchTimeout);
+    }
+
+    if (!searchPhrase.value.trim()) {
+        searchResults.value = [];
+        selectedCity.value = null;
         return;
     }
-    const name = item.display_name || item.name || String(item);
-    fetchWeather(lat, lon, name);
+
+    searchTimeout = setTimeout(() => {
+        searchCities(false);
+    }, 500);
 }
 
-async function fetchCities() {
-    const query =
-        typeof selected.value === 'string' ? selected.value : selected.value?.display_name || '';
-    if (!query) {
-        console.warn('Ei hakusanaa annettu');
+/*
+  onEnterPress()
+
+  TARKOITUS:
+  - käsittelee Enter-näppäimen
+  - hakee tulokset heti
+  - jos tuloksia löytyy, valitsee ensimmäisen kaupungin
+
+  FLOW:
+  Enter -> searchCities() -> setCity(ensimmäinen osuma)
+*/
+async function onEnterPress() {
+    if (!searchPhrase.value.trim()) {
+        error.value = 'Kirjoita hakusana ensin';
         return;
     }
-    // run search (searchPlaces already sets searchResults and logs raw response)
-    await searchPlaces(query);
-    // log the mapped array of places
-    console.log('HAETUT KAUPUNGIT:', searchResults.value);
-    // convenience: expose to window for easy console filtering
-    try {
-        window.lastSearchResults = searchResults.value;
-    } catch {
-        /* ignore if not allowed */
+
+    if (searchTimeout) {
+        clearTimeout(searchTimeout);
+        searchTimeout = null;
+    }
+
+    if (!searchResults.value.length) {
+        await searchCities(false);
+    }
+
+    if (searchResults.value.length) {
+        setCity(searchResults.value[0]);
     }
 }
 
-onMounted(() => {
-    // default to London as requested
-    const london = topCities.value[0];
-    selected.value = london;
-    fetchWeather(london.lat, london.lon, london.display_name);
-});
+/*
+  setCity(city)
+
+  TARKOITUS:
+  - asettaa valitun kaupungin
+  - tyhjentää hakutuloslistan
+  - käynnistää säähaun
+
+  FLOW:
+  klikattu city -> selectedCity -> fetchWeather()
+*/
+function setCity(city) {
+    if (searchTimeout) {
+        clearTimeout(searchTimeout);
+        searchTimeout = null;
+    }
+
+    searchResults.value = [];
+    weatherStore.setCity(city);
+    weatherStore.fetchWeather(city);
+}
+
+
+/*
+  formatDate(dateString)
+
+  Muuttaa API:n päivämäärän suomalaiseen muotoon.
+  Esim:
+  2026-05-03 -> 3.5.
+*/
+function formatDate(dateString) {
+    if (!dateString) return '';
+
+    const date = new Date(dateString);
+
+    return date.toLocaleDateString('fi-FI', {
+        day: 'numeric',
+        month: 'numeric',
+    });
+}
+
+/*
+  getRainIconColor(precipitation)
+
+  Antaa ikonille värin sademäärän mukaan:
+  - 0 mm -> grey
+  - < 2 mm -> blue
+  - < 5 mm -> orange
+  - >= 5 mm -> red
+*/
+function getRainIconColor(precipitation) {
+    if (precipitation === null || precipitation === undefined) return 'grey';
+    if (precipitation === 0) return 'grey';
+    if (precipitation < 2) return 'blue';
+    if (precipitation < 5) return 'orange';
+    return 'red';
+}
+
+/*
+  getRainProbabilityColor(probability)
+
+  Antaa ikonille värin sateen todennäköisyyden mukaan:
+  - < 30% -> green
+  - < 60% -> yellow
+  - >= 60% -> red
+*/
+function getRainProbabilityColor(probability) {
+    if (probability === null || probability === undefined) return 'grey';
+    if (probability < 30) return 'green';
+    if (probability < 60) return 'yellow';
+    return 'red';
+}
 </script>
 
 <style scoped>
+/*
+  YLEISET TYYLIT
+  Tärkein muutos:
+  - forecast-korttien tekstit on pakotettu mustiksi,
+    jotta ne näkyvät vaaleaa/vihreää/oranssia taustaa vasten.
+*/
+
+/* Hakutuloslista */
 .city-list {
     max-height: 250px;
     overflow-y: auto;
 }
+
+/* Yksittäinen hakutulos */
 .city-item {
     border: 1px solid rgba(76, 175, 80, 0.6);
     margin: 6px 0;
@@ -250,8 +757,158 @@ onMounted(() => {
     padding: 8px 12px;
     background: rgba(255, 255, 255, 0.02);
 }
+
 .city-item:hover {
     cursor: pointer;
     background: rgba(255, 255, 255, 0.03);
+}
+
+.city-item-title {
+    font-weight: 600;
+}
+
+.city-item-subtitle {
+    opacity: 0.85;
+}
+
+/* Koordinaattiteksti */
+.city-coords {
+    color: #111;
+    font-weight: 500;
+}
+
+/* Tämän päivän sääkortti */
+.current-weather-card {
+    background: linear-gradient(135deg, rgba(33, 150, 243, 0.1), rgba(76, 175, 80, 0.1));
+    border: 1px solid rgba(33, 150, 243, 0.3);
+    border-radius: 12px;
+}
+
+.current-weather-title {
+    color: #111;
+}
+
+/* Säätilastoruudut */
+.weather-stat {
+    text-align: center;
+    padding: 8px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.2);
+    margin-bottom: 8px;
+    color: #111;
+}
+
+.weather-stat .stat-value {
+    font-size: 1.2em;
+    font-weight: 700;
+    display: block;
+    margin: 4px 0;
+    color: #111;
+}
+
+.weather-stat .stat-label {
+    font-size: 0.8em;
+    color: #111;
+    font-weight: 500;
+}
+
+/* 7 päivän ennustekortit */
+.forecast-card {
+    background: rgba(76, 175, 80, 0.12);
+    border: 1px solid rgba(76, 175, 80, 0.25);
+    transition: transform 0.2s ease;
+    color: #111;
+}
+
+.forecast-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* Tämän päivän kortin korostus */
+.today-card {
+    border-color: rgba(255, 152, 0, 0.6);
+    background: rgba(255, 152, 0, 0.18);
+}
+
+/* Tänään-badge */
+.today-badge {
+    background: rgba(255, 152, 0, 0.9);
+    color: white;
+    padding: 2px 6px;
+    border-radius: 12px;
+    font-size: 0.7em;
+    margin-left: 8px;
+    font-weight: 700;
+}
+
+/* Päivämäärärivi */
+.forecast-date {
+    font-weight: 700;
+    margin-bottom: 8px;
+    color: #111;
+}
+
+.forecast-date-icon {
+    color: #111;
+}
+
+/* Pakotetaan korttien päätekstit mustiksi */
+.forecast-main-text {
+    color: #111;
+    font-weight: 600;
+}
+
+/* Lämpötilarivi */
+.temp-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 8px;
+    color: #111;
+}
+
+.temp-max {
+    color: #d84315;
+    font-weight: 700;
+    margin-right: 8px;
+}
+
+.temp-min {
+    color: #1565c0;
+    font-weight: 700;
+}
+
+/* Sadesumman rivi */
+.rain-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    margin-bottom: 4px;
+    color: #111;
+}
+
+/* Sadetuntien rivi */
+.rain-hours-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #111;
+    font-weight: 600;
+}
+
+/* Sateen todennäköisyysrivi */
+.rain-prob-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.95em;
+    color: #111;
+}
+
+.rain-prob {
+    margin-left: 4px;
+    font-weight: 600;
 }
 </style>

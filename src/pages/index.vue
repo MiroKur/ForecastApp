@@ -1,53 +1,83 @@
 <template>
-    <v-container class="d-flex align-center justify-center" style="height: 100vh">
-        <v-row class="justify-center">
-            <v-col cols="12" md="5" class="pa-2">
-                <v-card class="text-center pa-6" elevation="4" height="300">
-                    <v-card-title class="text-h4 mb-2">
-                        <v-icon size="48" class="mb-2" color="primary">mdi-weather-cloudy</v-icon>
-                        <br />
-                        Sääennuste
-                    </v-card-title>
+    <!-- Pääsivu, jossa käytetään Vuetify-kontteja ja korttirakennetta
+         sovelluksen navigointiin kahteen tärkeään osioon. -->
+    <v-container class="py-12">
+        <!-- Isot otsikko- ja esittelykortti keskitettynä -->
+        <v-row justify="center" class="mb-10">
+            <v-col cols="12" md="8" class="text-center">
+                <v-sheet color="primary" rounded="lg" class="pa-10 text-white elevation-3">
+                    <div class="text-h2 font-weight-bold mb-4">Sadevahti</div>
+                    <div class="text-subtitle-1">
+                        Säänavigaattori, joka tietää että tulet kastumaan. Hae paikkakuntakohtaiset
+                        sade- ja säätiedot helposti ja nopeasti. Valmistaudu sateeseen ennen kuin se
+                        yllättää sinut!
+                    </div>
+                </v-sheet>
+            </v-col>
+        </v-row>
 
-                    <v-card-subtitle class="text-h6 mb-4">
-                        Katso tämänhetkinen sää ja ennusteet
-                    </v-card-subtitle>
+        <!-- Navigointikortit: Sääennuste ja Lisätiedot -->
+        <v-row justify="center" align="stretch" class="g-6">
+            <v-col cols="12" md="5">
+                <v-card elevation="4" rounded="lg" class="pa-6 h-100">
+                    <!-- Kortin yläosa sisältää ikonit ja otsikon -->
+                    <v-row align="center" class="mb-4">
+                        <v-col cols="auto">
+                            <v-icon size="48" color="primary">mdi-weather-partly-cloudy</v-icon>
+                        </v-col>
+                        <v-col>
+                            <div class="text-h5 font-weight-bold">Sääennuste</div>
+                            <div class="text-body-2 text-secondary">
+                                Hae paikkakuntakohtainen sää ja 7 päivän sadetiedot.
+                            </div>
+                        </v-col>
+                    </v-row>
 
-                    <v-card-actions class="justify-center">
-                        <v-btn
-                            color="primary"
-                            size="large"
-                            variant="elevated"
-                            to="/forecast"
-                            prepend-icon="mdi-weather-partly-cloudy"
-                        >
-                            Näytä ennuste
+                    <!-- Kortin kuvausteksti -->
+                    <v-card-text class="mb-6">
+                        Tutustu päivän lämpötiloihin, sateen todennäköisyyteen ja tulevan viikon
+                        ennusteeseen.
+                    </v-card-text>
+
+                    <!-- Navigaatiopainike sääennustesivulle -->
+                    <v-card-actions>
+                        <v-btn color="primary" variant="elevated" to="/forecast" class="mx-auto">
+                            Siirry sääennusteeseen
                         </v-btn>
                     </v-card-actions>
                 </v-card>
             </v-col>
 
-            <v-col cols="12" md="5" class="pa-2">
-                <v-card class="text-center pa-6" elevation="4" height="300">
-                    <v-card-title class="text-h4 mb-2">
-                        <v-icon size="48" class="mb-2" color="secondary">mdi-chart-line</v-icon>
-                        <br />
-                        Yksityiskohdat
-                    </v-card-title>
+            <v-col cols="12" md="5">
+                <v-card elevation="4" rounded="lg" class="pa-6 h-100">
+                    <!-- Kortin yläosa: lisätietojen otsikko ja kuvake -->
+                    <v-row align="center" class="mb-4">
+                        <v-col cols="auto">
+                            <v-icon size="48" color="secondary">mdi-information-outline</v-icon>
+                        </v-col>
+                        <v-col>
+                            <div class="text-h5 font-weight-bold">Lisätiedot</div>
+                            <div class="text-body-2 text-secondary">
+                                Lue sovelluksesta, sen toiminnasta ja käyttövinkeistä.
+                            </div>
+                        </v-col>
+                    </v-row>
 
-                    <v-card-subtitle class="text-h6 mb-4">
-                        Tarkastele yksityiskohtaisia sääanalyysejä
-                    </v-card-subtitle>
+                    <!-- Lisätietojen kuvaus -->
+                    <v-card-text class="mb-6">
+                        Tämä sovellus tarjoaa sade- sekä säätietojen hakemisen käyttäjille. Katso
+                        käyttöohjeet ja lisätiedot klikkaamalla alla olevaa painiketta.
+                    </v-card-text>
 
-                    <v-card-actions class="justify-center">
+                    <!-- Navigaatiopainike lisätietosivulle -->
+                    <v-card-actions>
                         <v-btn
                             color="secondary"
-                            size="large"
                             variant="elevated"
-                            prepend-icon="mdi-chart-bar"
-                            @click="goToDetailsWithProps"
+                            class="mx-auto"
+                            @click="goToDetails"
                         >
-                            Näytä yksityiskohdat
+                            Näytä lisätiedot
                         </v-btn>
                     </v-card-actions>
                 </v-card>
@@ -57,20 +87,12 @@
 </template>
 
 <script setup>
+// Vue Router käytetään sovelluksen sisäiseen navigointiin
 import { useRouter } from 'vue-router';
 const router = useRouter();
 
-const creator = {
-    firstName: 'Miro',
-    lastName: 'Korpela',
-    jobTitle: 'Opiskelija',
-    company: 'SAMK',
-};
-
-const goToDetailsWithProps = () => {
-    router.push({
-        name: 'Details',
-        query: { creatorData: JSON.stringify(creator) },
-    });
+// Navigoi lisätiedot-sivulle, kun käyttäjä painaa painiketta
+const goToDetails = () => {
+    router.push({ name: 'Details' });
 };
 </script>
